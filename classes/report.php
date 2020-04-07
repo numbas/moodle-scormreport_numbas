@@ -33,6 +33,35 @@ function fix_choice_answer($s) {
     return implode(', ',$bits);
 }
 
+class Interaction {
+    public $N;
+
+    function __construct($N) {
+        $this->$N = $N;
+        $this->elements = array();
+    }
+}
+
+class Question {
+    function __construct() {
+        $this->parts = array();
+    }
+}
+
+class Part {
+    public $id = '';
+    public $type = '';
+    public $student_answer = '';
+    public $correct_answer = '';
+    public $score = '';
+    public $marks = '';
+
+    function __construct() {
+        $this->gaps = array();
+        $this->steps = array();
+    }
+}
+
 class report extends \mod_scorm\report {
     /**
      * displays the full report
@@ -86,53 +115,45 @@ class report extends \mod_scorm\report {
                     if(preg_match($re_interaction,$element,$matches)) {
                         $n = $matches[1];
                         if(!array_key_exists($n,$interactions)) {
-                            $interactions[$n] = array('N' => $n);
+                            $interactions[$n] = new Interaction($n);
                         }
-                        $interaction = &$interactions[$n];
+                        $interaction = $interactions[$n];
                         $ielement = $matches[2];
-                        $interaction[$ielement] = $value;
+                        $interaction->elements[$ielement] = $value;
                     }
                     if($element == 'cmi.suspend_data') {
                         $suspend_data = json_decode($value,TRUE);
                     }
                 }
                 $questions = array();
-                foreach($interactions as $interaction) {
-                    if(!array_key_exists('id',$interaction)) {
+                ksort($interactions, SORT_NUMERIC);
+                foreach($interactions as $n => $interaction) {
+                    if(!array_key_exists('id',$interaction->elements)) {
                         continue;
                     }
-                    $blank_part = array(
-                        'type' => '',
-                        'student_answer' => '',
-                        'correct_answer' => '',
-                        'score' => '',
-                        'marks' => ''
-                    );
-                    if(preg_match("/^q(\d+)p(\d+)(?:g(\d+)|s(\d+))?$/",$interaction['id'],$pathm)) {
+                    if(preg_match("/^q(\d+)p(\d+)(?:g(\d+)|s(\d+))?$/",$interaction->elements['id'],$pathm)) {
                         $qn = $pathm[1];
                         if(!array_key_exists($qn,$questions)) {
-                            $questions[$qn] = array("parts" => array());
+                            $questions[$qn] = new Question();
                         }
-                        $question = &$questions[$qn];
+                        $question = $questions[$qn];
                         $pn = $pathm[2];
-                        if(!array_key_exists($pn,$question['parts'])) {
-                            $question['parts'][$pn] = $blank_part;
-                            $question['parts'][$pn]['gaps'] = array();
-                            $question['parts'][$pn]['steps'] = array();
+                        if(!array_key_exists($pn,$question->parts)) {
+                            $question->parts[$pn] = new Part();
                         }
-                        $part = &$question['parts'][$pn];
+                        $part = $question->parts[$pn];
                         if(array_key_exists(3,$pathm) && $pathm[3]!=='') {
                             $gn = $pathm[3];
-                            if(!array_key_exists($gn,$part['gaps'])) {
-                                $part['gaps'][$gn] = $blank_part;
+                            if(!array_key_exists($gn,$part->gaps)) {
+                                $part->gaps[$gn] = new Part();
                             }
-                            $part = &$part['gaps'][$gn];
+                            $part = $part->gaps[$gn];
                         } else if(array_key_exists(4,$pathm) && $pathm[4]!=='') {
                             $sn = $pathm[3];
-                            if(!array_key_exists($sn,$part['steps'])) {
-                                $part['steps'][$sn] = $blank_part;
+                            if(!array_key_exists($sn,$part->steps)) {
+                                $part->steps[$sn] = new Part();
                             }
-                            $part = &$part['steps'][$n];
+                            $part = $part->steps[$n];
                         }
                         $element_map = array(
                             'N' => 'N',
@@ -144,32 +165,41 @@ class report extends \mod_scorm\report {
                             'weighting' => 'marks'
                         );
                         foreach($element_map as $from => $to) {
-                            if(array_key_exists($from,$interaction)) {
-                                $part[$to] = $interaction[$from];
+                            if(array_key_exists($from,$interaction->elements)) {
+                                $part->$to = $interaction->elements[$from];
                             }
                         }
-                        switch($part['type']) {
+                        switch($part->type) {
                         case 'information':
                         case 'gapfill':
-                            $part['student_answer'] = '';
-                            $part['correct_answer'] = '';
+                            $part->student_answer = '';
+                            $part->correct_answer = '';
+                            break;
+                        case 'numberentry':
+                            if(preg_match('/^(-?\d+(?:\.\d+)?)\[:\](-?\d+(?:\.\d+)?)$/',$part->correct_answer,$m)) {
+                                if($m[1]==$m[2]) {
+                                    $part->correct_answer = $m[1];
+                                } else {
+                                    $part->correct_answer = "${m[1]} to ${m[2]}";
+                                }
+                            }
                             break;
                         case '1_n_2':
                         case 'm_n_2':
                         case 'm_n_x':
-                            $part['student_answer'] = fix_choice_answer($part['student_answer']);
-                            $part['correct_answer'] = fix_choice_answer($part['correct_answer']);
+                            $part->student_answer = fix_choice_answer($part->student_answer);
+                            $part->correct_answer = fix_choice_answer($part->correct_answer);
                             break;
                         }
-                        switch($interaction['type']) {
+                        switch($interaction->elements['type']) {
                         case 'fill-in':
-                            $part['correct_answer'] = preg_replace('/^\{case_matters=(true|false)\}/','',$part['correct_answer'],1);
-                            if(preg_match('/^-?\d+(\.\d+)\[:\]-?\d+(\.\d+)$/',$part['correct_answer'])) {
-                                $bits = explode('[:]',$part['correct_answer']);
+                            $part->correct_answer = preg_replace('/^\{case_matters=(true|false)\}/','',$part->correct_answer,1);
+                            if(preg_match('/^-?\d+(\.\d+)\[:\]-?\d+(\.\d+)$/',$part->correct_answer)) {
+                                $bits = explode('[:]',$part->correct_answer);
                                 if($bits[0]==$bits[1]) {
-                                    $part['correct_answer'] = $bits[0];
+                                    $part->correct_answer = $bits[0];
                                 } else {
-                                    $part['correct_answer'] = str_replace('[:]',' to ',$part['correct_answer']);
+                                    $part->correct_answer = str_replace('[:]',' to ',$part->correct_answer);
                                 }
                             }
                             break;
@@ -188,7 +218,7 @@ class report extends \mod_scorm\report {
                     'jme' => 'Mathematical expression',
                     'gapfill' => 'Gap-fill'
                 );
-                sort($questions, SORT_NUMERIC);
+                ksort($questions, SORT_NUMERIC);
                 foreach($questions as $qn => $question) {
                     $rows = array();
                     $qs = $suspend_data['questions'][$qn];
@@ -215,8 +245,8 @@ class report extends \mod_scorm\report {
                     $table->define_headers($headers);
                     $table->set_attribute('id', 'attempt');
                     $table->setup();
-                    sort($question['parts'], SORT_NUMERIC);
-                    foreach($question['parts'] as $pn => $part) {
+                    ksort($question->parts, SORT_NUMERIC);
+                    foreach($question->parts as $pn => $part) {
                         if(!array_key_exists($pn,$qs['parts'])) {
                             continue;
                         }
@@ -225,20 +255,21 @@ class report extends \mod_scorm\report {
                             'suspend' => $ps,
                             'part' => $part
                         );
-                        sort($part['gaps'], SORT_NUMERIC);
-                        foreach($part['gaps'] as $gn => $gap) {
-                            if(!array_key_exists($gn,$ps['gaps'])) {
-                                continue;
+                        ksort($part->gaps, SORT_NUMERIC);
+                        foreach($part->gaps as $gn => $gap) {
+                            if(array_key_exists('gaps',$ps) && array_key_exists($gn,$ps['gaps'])) {
+                                $gs = $ps['gaps'][$gn];
+                            } else {
+                                $gs = array('name' => $ps['name'] . " Gap $gn");
                             }
-                            $gs = $ps['gaps'][$gn];
                             $rows[] = array(
                                 'suspend' => $gs,
                                 'part' => $gap,
                                 'indent' => 1
                             );
                         }
-                        sort($part['steps'], SORT_NUMERIC);
-                        foreach($part['steps'] as $sn => $step) {
+                        ksort($part->steps, SORT_NUMERIC);
+                        foreach($part->steps as $sn => $step) {
                             if(!array_key_exists($sn,$ps['steps'])) {
                                 continue;
                             }
@@ -253,24 +284,24 @@ class report extends \mod_scorm\report {
                     foreach($rows as $row) {
                         $ps = $row['suspend'];
                         $part = $row['part'];
-                        $name = $ps['name'];
+                        $name = $ps ? $ps['name'] : '';
                         if(substr($name,0,strlen($qname))==$qname) {
                             $name = substr($name,strlen($qname));
                         }
                         if(array_key_exists('indent',$row)) {
                             $name = '&nbsp;&nbsp;' . $name;
                         }
-                        $type = $part['type'];
+                        $type = $part->type;
                         if(array_key_exists($type,$part_type_names)) {
                             $type = $part_type_names[$type];
                         }
                         $table->add_data(array(
                             $name,
                             $type,
-                            '<code>' . $part['student_answer'] . '</code>',
-                            '<code>' . $part['correct_answer'] . '</code>',
-                            $part['score'], 
-                            $part['marks']
+                            '<code>' . $part->student_answer . '</code>',
+                            '<code>' . $part->correct_answer . '</code>',
+                            $part->score, 
+                            $part->marks
                         ));
                     }
                     $table->finish_output();
