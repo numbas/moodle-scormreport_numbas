@@ -1,6 +1,6 @@
 # Numbas report for Moodle SCORM
 
-This Moodle provides a special report for Moodle's SCORM player, for use with [Numbas](https:/www.numbas.org.uk) exams.
+This Moodle plugin provides a special report for Moodle's SCORM player, for use with [Numbas](https:/www.numbas.org.uk) exams.
 
 For each attempt, it shows the student's answers and scores against the correct answer for each part, in an easier to read form than Moodle's built-in "track details" view.
 
