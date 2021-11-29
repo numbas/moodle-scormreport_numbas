@@ -347,10 +347,10 @@ class report extends \mod_scorm\report {
             $columns[] = 'fullname';
             $headers[] = get_string('name');
 
-            $extrafields = get_extra_user_fields($coursecontext);
+            $extrafields = \core_user\fields::for_identity($coursecontext, false)->get_required_fields();
             foreach ($extrafields as $field) {
                 $columns[] = $field;
-                $headers[] = get_user_field_name($field);
+                $headers[] = \core_user\fields::get_display_name($field);
             }
             $columns[] = 'attempt';
             $headers[] = get_string('attempt', 'scorm');
@@ -365,10 +365,9 @@ class report extends \mod_scorm\report {
             list($usql, $params) = $DB->get_in_or_equal($allowedlist, SQL_PARAMS_NAMED);
             // Construct the SQL.
             $select = 'SELECT DISTINCT '.$DB->sql_concat('u.id', '\'#\'', 'COALESCE(st.attempt, 0)').' AS uniqueid, ';
-            $select .= 'st.scormid AS scormid, st.attempt AS attempt, ' .
-                    \user_picture::fields('u', array('idnumber'), 'userid') .
-                    get_extra_user_fields_sql($coursecontext, 'u', '', array('email', 'idnumber')) . ' ';
-
+            $select .= 'st.scormid AS scormid, st.attempt AS attempt ' .
+                    \core_user\fields::for_userpic()->including('idnumber')->get_sql('u',false,'','userid')->selects . ' ' .
+                    \core_user\fields::for_identity($coursecontext, false)->excluding('email', 'idnumber')->get_sql('u', false, '')->selects;
             // This part is the same for all cases - join users and scorm_scoes_track tables.
             $from = 'FROM {user} u ';
             $from .= 'LEFT JOIN {scorm_scoes_track} st ON st.userid = u.id AND st.scormid = '.$this->scorm->id;
