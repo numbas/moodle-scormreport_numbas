@@ -14,4 +14,4 @@ $plugin->version   = 2021112900;                 // The current plugin version (
 $plugin->requires  = 2019111200;                 // Requires this Moodle version.
 $plugin->component = 'scormreport_numbas'; // Full name of the plugin (used for diagnostics).
 $plugin->maturity = MATURITY_STABLE;
-$plugin-release = 'v1.0';
+$plugin->release = 'v1.0';
