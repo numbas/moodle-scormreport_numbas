@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 /**
- * Core Report class of basic reporting plugin
- * @package   scormreport
+ * SCORM report class for Numbas SCORM packages
+ * @package   scormreport_numbas
  * @subpackage numbas
- * @author    Dan Marsden and Ankit Kumar Agarwal
+ * @author    Christian Lawson-Perfect
+ * @copyright 2020-2021 Newcastle University
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -25,50 +26,17 @@ namespace scormreport_numbas;
 
 defined('MOODLE_INTERNAL') || die();
 
-function fix_choice_answer($s) {
-    $bits = explode('[,]',$s);
-    foreach($bits as $i => $b) {
-        $bits[$i] = preg_replace('/(\d+)\[\.\](\d+)/','($1,$2)',$b);
-    }
-    return implode(', ',$bits);
-}
-
-class Interaction {
-    public $N;
-
-    function __construct($N) {
-        $this->$N = $N;
-        $this->elements = array();
-    }
-}
-
-class Question {
-    function __construct() {
-        $this->parts = array();
-    }
-}
-
-class Part {
-    public $id = '';
-    public $type = '';
-    public $student_answer = '';
-    public $correct_answer = '';
-    public $score = '';
-    public $marks = '';
-
-    function __construct() {
-        $this->gaps = array();
-        $this->steps = array();
-    }
-}
+require_once(__DIR__ . '/interaction.php');
+require_once(__DIR__ . '/question.php');
+require_once(__DIR__ . '/part.php');
 
 class report extends \mod_scorm\report {
     /**
-     * displays the full report
-     * @param \stdClass $scorm full SCORM object
-     * @param \stdClass $cm - full course_module object
-     * @param \stdClass $course - full course object
-     * @param string $download - type of download being requested
+     * Displays the full report.
+     * @param \stdClass $scorm Full SCORM object.
+     * @param \stdClass $cm full Course_module object.
+     * @param \stdClass $course Full course object.
+     * @param string $download Type of download being requested.
      */
     public function display($scorm, $cm, $course, $download) {
         global $CFG, $DB, $OUTPUT, $PAGE;
@@ -78,25 +46,39 @@ class report extends \mod_scorm\report {
         $this->course = $course;
 
         $action = optional_param('action', '', PARAM_ALPHA);
-        switch($action) {
-        case 'viewattempt':
-            $this->view_attempt();
-            break;
-        default:
-            $this->show_table();
+        switch ($action) {
+            case 'viewattempt':
+                $this->view_attempt();
+                break;
+            default:
+                $this->show_table();
         }
     }
+
+    /**
+     * Rewrite the SCORM multiple choice format to something readable.
+     * @param string $answer
+     * @return string
+     */
+    private function fix_choice_answer($answer) {
+        $bits = explode('[,]', $answer);
+        foreach ($bits as $i => $b) {
+            $bits[$i] = preg_replace('/(\d+)\[\.\](\d+)/', '($1,$2)', $b);
+        }
+        return implode(', ', $bits);
+    }
+
 
     private function view_attempt() {
         global $CFG, $DB, $OUTPUT, $PAGE;
 
-        $scormversion = strtolower(clean_param($this->scorm->version, PARAM_SAFEDIR));   // Just to be safe.
+        $scormversion = strtolower(clean_param($this->scorm->version, PARAM_SAFEDIR));
         require_once($CFG->dirroot.'/mod/scorm/datamodels/'.$scormversion.'lib.php');
 
         $userid = required_param('user', PARAM_INT);
         $attempt = required_param('attempt', PARAM_INT);
 
-        $scoes = $DB->get_records('scorm_scoes', array("scorm" => $this->scorm->id), 'sortorder, id');
+        $scoes = $DB->get_records('scorm_scoes', array('scorm' => $this->scorm->id), 'sortorder, id');
         foreach ($scoes as $sco) {
             if ($sco->launch != '') {
                 if ($trackdata = scorm_get_tracks($sco->id, $userid, $attempt)) {
@@ -109,49 +91,49 @@ class report extends \mod_scorm\report {
                     $trackdata->total_time = '';
                 }
                 $interactions = array();
-                $re_interaction = "/^cmi.interactions.(\d+).(id|description|learner_response|correct_responses.0.pattern|weighting|result|type)/";
+                $re_interaction = '/^cmi.interactions.(\d+).(id|description|learner_response|correct_responses.0.pattern|weighting|result|type)/';
                 $suspend_data = array();
-                foreach($trackdata as $element => $value) {
-                    if(preg_match($re_interaction,$element,$matches)) {
+                foreach ($trackdata as $element => $value) {
+                    if (preg_match($re_interaction, $element, $matches)) {
                         $n = $matches[1];
-                        if(!array_key_exists($n,$interactions)) {
-                            $interactions[$n] = new Interaction($n);
+                        if (!array_key_exists($n, $interactions)) {
+                            $interactions[$n] = new interaction($n);
                         }
                         $interaction = $interactions[$n];
                         $ielement = $matches[2];
                         $interaction->elements[$ielement] = $value;
                     }
-                    if($element == 'cmi.suspend_data') {
-                        $suspend_data = json_decode($value,TRUE);
+                    if ($element == 'cmi.suspend_data') {
+                        $suspend_data = json_decode($value, TRUE);
                     }
                 }
                 $questions = array();
                 ksort($interactions, SORT_NUMERIC);
-                foreach($interactions as $n => $interaction) {
-                    if(!array_key_exists('id',$interaction->elements)) {
+                foreach ($interactions as $n => $interaction) {
+                    if (!array_key_exists('id', $interaction->elements)) {
                         continue;
                     }
-                    if(preg_match("/^q(\d+)p(\d+)(?:g(\d+)|s(\d+))?$/",$interaction->elements['id'],$pathm)) {
+                    if (preg_match('/^q(\d+)p(\d+)(?:g(\d+)|s(\d+))?$/', $interaction->elements['id'], $pathm)) {
                         $qn = $pathm[1];
-                        if(!array_key_exists($qn,$questions)) {
-                            $questions[$qn] = new Question();
+                        if (!array_key_exists($qn, $questions)) {
+                            $questions[$qn] = new question();
                         }
                         $question = $questions[$qn];
                         $pn = $pathm[2];
-                        if(!array_key_exists($pn,$question->parts)) {
-                            $question->parts[$pn] = new Part();
+                        if (!array_key_exists($pn, $question->parts)) {
+                            $question->parts[$pn] = new part();
                         }
                         $part = $question->parts[$pn];
-                        if(array_key_exists(3,$pathm) && $pathm[3]!=='') {
+                        if (array_key_exists(3, $pathm) && $pathm[3]!=='') {
                             $gn = $pathm[3];
-                            if(!array_key_exists($gn,$part->gaps)) {
-                                $part->gaps[$gn] = new Part();
+                            if (!array_key_exists($gn, $part->gaps)) {
+                                $part->gaps[$gn] = new part();
                             }
                             $part = $part->gaps[$gn];
-                        } else if(array_key_exists(4,$pathm) && $pathm[4]!=='') {
+                        } else if (array_key_exists(4, $pathm) && $pathm[4]!=='') {
                             $sn = $pathm[3];
-                            if(!array_key_exists($sn,$part->steps)) {
-                                $part->steps[$sn] = new Part();
+                            if (!array_key_exists($sn, $part->steps)) {
+                                $part->steps[$sn] = new part();
                             }
                             $part = $part->steps[$n];
                         }
@@ -164,62 +146,62 @@ class report extends \mod_scorm\report {
                             'result' => 'score',
                             'weighting' => 'marks'
                         );
-                        foreach($element_map as $from => $to) {
-                            if(array_key_exists($from,$interaction->elements)) {
+                        foreach ($element_map as $from => $to) {
+                            if (array_key_exists($from, $interaction->elements)) {
                                 $part->$to = $interaction->elements[$from];
                             }
                         }
-                        switch($part->type) {
-                        case 'information':
-                        case 'gapfill':
-                            $part->student_answer = '';
-                            $part->correct_answer = '';
-                            break;
-                        case 'numberentry':
-                            if(preg_match('/^(-?\d+(?:\.\d+)?)\[:\](-?\d+(?:\.\d+)?)$/',$part->correct_answer,$m)) {
-                                if($m[1]==$m[2]) {
-                                    $part->correct_answer = $m[1];
-                                } else {
-                                    $part->correct_answer = "${m[1]} to ${m[2]}";
+                        switch ($part->type) {
+                            case 'information':
+                            case 'gapfill':
+                                $part->student_answer = '';
+                                $part->correct_answer = '';
+                                break;
+                            case 'numberentry':
+                                if (preg_match('/^(-?\d+(?:\.\d+)?)\[:\](-?\d+(?:\.\d+)?)$/', $part->correct_answer, $m)) {
+                                    if ($m[1]==$m[2]) {
+                                        $part->correct_answer = $m[1];
+                                    } else {
+                                        $part->correct_answer = "${m[1]} to ${m[2]}";
+                                    }
                                 }
-                            }
-                            break;
-                        case '1_n_2':
-                        case 'm_n_2':
-                        case 'm_n_x':
-                            $part->student_answer = fix_choice_answer($part->student_answer);
-                            $part->correct_answer = fix_choice_answer($part->correct_answer);
-                            break;
+                                break;
+                            case '1_n_2':
+                            case 'm_n_2':
+                            case 'm_n_x':
+                                $part->student_answer = $this->fix_choice_answer($part->student_answer);
+                                $part->correct_answer = $this->fix_choice_answer($part->correct_answer);
+                                break;
                         }
-                        switch($interaction->elements['type']) {
-                        case 'fill-in':
-                            $part->correct_answer = preg_replace('/^\{case_matters=(true|false)\}/','',$part->correct_answer,1);
-                            if(preg_match('/^-?\d+(\.\d+)\[:\]-?\d+(\.\d+)$/',$part->correct_answer)) {
-                                $bits = explode('[:]',$part->correct_answer);
-                                if($bits[0]==$bits[1]) {
-                                    $part->correct_answer = $bits[0];
-                                } else {
-                                    $part->correct_answer = str_replace('[:]',' to ',$part->correct_answer);
+                        switch ($interaction->elements['type']) {
+                            case 'fill-in':
+                                $part->correct_answer = preg_replace('/^\{case_matters=(true|false)\}/', '', $part->correct_answer, 1);
+                                if (preg_match('/^-?\d+(\.\d+)\[:\]-?\d+(\.\d+)$/', $part->correct_answer)) {
+                                    $bits = explode('[:]', $part->correct_answer);
+                                    if ($bits[0]==$bits[1]) {
+                                        $part->correct_answer = $bits[0];
+                                    } else {
+                                        $part->correct_answer = str_replace('[:]', get_string('to','scormreport_numbas'), $part->correct_answer);
+                                    }
                                 }
-                            }
-                            break;
+                                break;
                         }
                     }
                 }
                 $part_type_names = array(
-                    'information' => 'Information only',
-                    'extension' => 'Extension',
-                    '1_n_2' => 'Choose one from a list',
-                    'm_n_2' => 'Choose several from a list',
-                    'm_n_x' => 'Match choices with answers',
-                    'numberentry' => 'Number entry',
-                    'matrix' => 'Matrix entry',
-                    'patternmatch' => 'Match text pattern',
-                    'jme' => 'Mathematical expression',
-                    'gapfill' => 'Gap-fill'
+                    'information' => get_string('informationonly', 'scormreport_numbas'),
+                    'extension' => get_string('extension', 'scormreport_numbas'),
+                    '1_n_2' => get_string('chooseonefromalist', 'scormreport_numbas'),
+                    'm_n_2' => get_string('chooseseveralfromalist', 'scormreport_numbas'),
+                    'm_n_x' => get_string('matchchoiceswithanswers', 'scormreport_numbas'),
+                    'numberentry' => get_string('numberentry', 'scormreport_numbas'),
+                    'matrix' => get_string('matrixentry', 'scormreport_numbas'),
+                    'patternmatch' => get_string('matchtextpattern', 'scormreport_numbas'),
+                    'jme' => get_string('mathematicalexpression', 'scormreport_numbas'),
+                    'gapfill' => get_string('gapfill', 'scormreport_numbas')
                 );
                 ksort($questions, SORT_NUMERIC);
-                foreach($questions as $qn => $question) {
+                foreach ($questions as $qn => $question) {
                     $rows = array();
                     $qs = $suspend_data['questions'][$qn];
                     $qname = $qs['name'];
@@ -233,11 +215,11 @@ class report extends \mod_scorm\report {
                     $table = new \flexible_table('mod-scorm-report');
                     $columns = array('part', 'type', 'student_answer', 'correct_answer', 'score', 'marks');
                     $headers = array(
-                        get_string('part', 'scormreport_numbas'), 
-                        get_string('type', 'scormreport_numbas'), 
-                        get_string('studentsanswer', 'scormreport_numbas'), 
-                        get_string('correctanswer', 'scormreport_numbas'), 
-                        get_string('score', 'scormreport_numbas'), 
+                        get_string('part', 'scormreport_numbas'),
+                        get_string('type', 'scormreport_numbas'),
+                        get_string('studentsanswer', 'scormreport_numbas'),
+                        get_string('correctanswer', 'scormreport_numbas'),
+                        get_string('score', 'scormreport_numbas'),
                         get_string('marks', 'scormreport_numbas')
                     );
                     $table->define_baseurl($PAGE->url);
@@ -246,8 +228,8 @@ class report extends \mod_scorm\report {
                     $table->set_attribute('id', 'attempt');
                     $table->setup();
                     ksort($question->parts, SORT_NUMERIC);
-                    foreach($question->parts as $pn => $part) {
-                        if(!array_key_exists($pn,$qs['parts'])) {
+                    foreach ($question->parts as $pn => $part) {
+                        if (!array_key_exists($pn, $qs['parts'])) {
                             continue;
                         }
                         $ps = $suspend_data['questions'][$qn]['parts'][$pn];
@@ -256,11 +238,11 @@ class report extends \mod_scorm\report {
                             'part' => $part
                         );
                         ksort($part->gaps, SORT_NUMERIC);
-                        foreach($part->gaps as $gn => $gap) {
-                            if(array_key_exists('gaps',$ps) && array_key_exists($gn,$ps['gaps'])) {
+                        foreach ($part->gaps as $gn => $gap) {
+                            if (array_key_exists('gaps', $ps) && array_key_exists($gn, $ps['gaps'])) {
                                 $gs = $ps['gaps'][$gn];
                             } else {
-                                $gs = array('name' => $ps['name'] . " Gap $gn");
+                                $gs = array('name' => $ps['name'] . get_string('gapnumber', 'scormreport_numbas', $gn));
                             }
                             $rows[] = array(
                                 'suspend' => $gs,
@@ -269,8 +251,8 @@ class report extends \mod_scorm\report {
                             );
                         }
                         ksort($part->steps, SORT_NUMERIC);
-                        foreach($part->steps as $sn => $step) {
-                            if(!array_key_exists($sn,$ps['steps'])) {
+                        foreach ($part->steps as $sn => $step) {
+                            if (!array_key_exists($sn, $ps['steps'])) {
                                 continue;
                             }
                             $ss = $ps['steps'][$sn];
@@ -281,18 +263,18 @@ class report extends \mod_scorm\report {
                             );
                         }
                     }
-                    foreach($rows as $row) {
+                    foreach ($rows as $row) {
                         $ps = $row['suspend'];
                         $part = $row['part'];
                         $name = $ps ? $ps['name'] : '';
-                        if(substr($name,0,strlen($qname))==$qname) {
-                            $name = substr($name,strlen($qname));
+                        if (substr($name, 0, strlen($qname))==$qname) {
+                            $name = substr($name, strlen($qname));
                         }
-                        if(array_key_exists('indent',$row)) {
+                        if (array_key_exists('indent', $row)) {
                             $name = '&nbsp;&nbsp;' . $name;
                         }
                         $type = $part->type;
-                        if(array_key_exists($type,$part_type_names)) {
+                        if (array_key_exists($type, $part_type_names)) {
                             $type = $part_type_names[$type];
                         }
                         $table->add_data(array(
@@ -300,7 +282,7 @@ class report extends \mod_scorm\report {
                             $type,
                             '<code>' . $part->student_answer . '</code>',
                             '<code>' . $part->correct_answer . '</code>',
-                            $part->score, 
+                            $part->score,
                             $part->marks
                         ));
                     }
@@ -319,7 +301,7 @@ class report extends \mod_scorm\report {
         $contextmodule = \context_module::instance($this->cm->id);
         $attemptid = optional_param_array('attemptid', array(), PARAM_RAW);
 
-        // Find out current groups mode.
+
         $currentgroup = groups_get_activity_group($this->cm, true);
 
 
@@ -327,7 +309,6 @@ class report extends \mod_scorm\report {
 
         $nostudents = false;
 
-        // All users who can attempt scoes.
         if (!$students = get_users_by_capability($contextmodule, 'mod/scorm:savetrack', 'u.id', '', '', '', '', '', false)) {
             echo $OUTPUT->notification(get_string('nostudentsyet'));
             $nostudents = true;
@@ -338,10 +319,8 @@ class report extends \mod_scorm\report {
         unset($students);
 
         if ( !$nostudents ) {
-            // Now check if asked download of data.
             $coursecontext = \context_course::instance($this->course->id);
 
-            // Define table columns.
             $columns = array();
             $headers = array();
             $columns[] = 'fullname';
@@ -363,15 +342,15 @@ class report extends \mod_scorm\report {
 
             $params = array();
             list($usql, $params) = $DB->get_in_or_equal($allowedlist, SQL_PARAMS_NAMED);
-            // Construct the SQL.
+
             $select = 'SELECT DISTINCT '.$DB->sql_concat('u.id', '\'#\'', 'COALESCE(st.attempt, 0)').' AS uniqueid, ';
             $select .= 'st.scormid AS scormid, st.attempt AS attempt ' .
-                    \core_user\fields::for_userpic()->including('idnumber')->get_sql('u',false,'','userid')->selects . ' ' .
+                    \core_user\fields::for_userpic()->including('idnumber')->get_sql('u', false, '', 'userid')->selects . ' ' .
                     \core_user\fields::for_identity($coursecontext, false)->excluding('email', 'idnumber')->get_sql('u', false, '')->selects;
-            // This part is the same for all cases - join users and scorm_scoes_track tables.
+
             $from = 'FROM {user} u ';
             $from .= 'LEFT JOIN {scorm_scoes_track} st ON st.userid = u.id AND st.scormid = '.$this->scorm->id;
-            // Show only students with attempts.
+
             $where = ' WHERE u.id ' .$usql. ' AND st.userid IS NOT NULL';
 
             $countsql = 'SELECT COUNT(DISTINCT('.$DB->sql_concat('u.id', '\'#\'', 'COALESCE(st.attempt, 0)').')) AS nbresults, ';
@@ -387,7 +366,6 @@ class report extends \mod_scorm\report {
 
             $table->sortable(true);
 
-            // This is done to prevent redundant data, when a user has multiple attempts.
             $table->column_suppress('fullname');
             foreach ($extrafields as $field) {
                 $table->column_suppress($field);
@@ -404,21 +382,18 @@ class report extends \mod_scorm\report {
             $table->set_attribute('id', 'attempts');
             $table->set_attribute('class', 'generaltable generalbox');
 
-            // Start working -- this is necessary as soon as the niceties are over.
             $table->setup();
 
             $sort = $table->get_sql_sort();
-            // Fix some weird sorting.
             if (empty($sort)) {
                 $sort = ' ORDER BY uniqueid';
             } else {
                 $sort = ' ORDER BY '.$sort;
             }
 
-            // Add extra limits due to initials bar.
             list($twhere, $tparams) = $table->get_sql_where();
             if ($twhere) {
-                $where .= ' AND '.$twhere; // Initial bar.
+                $where .= ' AND '.$twhere;
                 $params = array_merge($params, $tparams);
             }
 
@@ -444,11 +419,10 @@ class report extends \mod_scorm\report {
             }
             echo \html_writer::end_div();
 
-            // Fetch the attempts.
             $attempts = $DB->get_records_sql($select.$from.$where.$sort, $params,
             $table->get_page_start(), $table->get_page_size());
             echo \html_writer::start_div('', array('id' => 'scormtablecontainer'));
-            $table->initialbars($totalinitials > 20); // Build table rows.
+            $table->initialbars($totalinitials > 20);
             if ($attempts) {
                 foreach ($attempts as $scouser) {
                     $row = array();

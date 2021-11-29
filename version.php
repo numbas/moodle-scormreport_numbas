@@ -10,6 +10,6 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2020040200;                 // The current plugin version (Date: YYYYMMDDXX)
+$plugin->version   = 2021112900;                 // The current plugin version (Date: YYYYMMDDXX)
 $plugin->requires  = 2019111200;                 // Requires this Moodle version.
 $plugin->component = 'scormreport_numbas'; // Full name of the plugin (used for diagnostics).
