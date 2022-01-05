@@ -26,6 +26,8 @@ namespace scormreport_numbas;
 
 defined('MOODLE_INTERNAL') || die();
 
+/** A representation of the data corresponding to a single interaction (and each interaction usually corresponds to one part).
+ */
 class interaction {
     /** @var int The index of the interaction in the SCORM data model. */
     public $n;

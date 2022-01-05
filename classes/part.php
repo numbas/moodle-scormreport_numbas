@@ -26,6 +26,8 @@ namespace scormreport_numbas;
 
 defined('MOODLE_INTERNAL') || die();
 
+/** A representation of the data for a single question part.
+ */
 class part {
     /** @var string The name of the part. */
     public $id = '';

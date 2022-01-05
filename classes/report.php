@@ -71,6 +71,8 @@ class report extends \mod_scorm\report {
     }
 
 
+    /** View the report for a single attempt.
+     */
     private function view_attempt() {
         global $CFG, $DB, $OUTPUT, $PAGE;
 
