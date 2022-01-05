@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 /**
  * SCORM report class for Numbas SCORM packages
- * @package   scormreport
+ * @package   scormreport_numbas
  * @subpackage numbas
  * @author    Christian Lawson-Perfect
  * @copyright 2020-2021 Newcastle University
@@ -30,14 +30,14 @@ class part {
     /** @var string The name of the part. */
     public $id = '';
 
-    /** @var string The type of the part. */ 
+    /** @var string The type of the part. */
     public $type = '';
 
     /** @var string The student's answer. */
-    public $student_answer = '';
+    public $studentanswer = '';
 
     /** @var string The expected answer. */
-    public $correct_answer = '';
+    public $correctanswer = '';
 
     /** @var string The student's score. */
     public $score = '';
@@ -45,7 +45,9 @@ class part {
     /** @var string The number of marks available. */
     public $marks = '';
 
-    function __construct() {
+    /** Construct a part object.
+     */
+    public function __construct() {
         $this->gaps = array();
         $this->steps = array();
     }

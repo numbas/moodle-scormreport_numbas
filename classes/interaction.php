@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 /**
  * SCORM report class for Numbas SCORM packages
- * @package   scormreport
+ * @package   scormreport_numbas
  * @subpackage numbas
  * @author    Christian Lawson-Perfect
  * @copyright 2020-2021 Newcastle University
@@ -28,13 +28,17 @@ defined('MOODLE_INTERNAL') || die();
 
 class interaction {
     /** @var int The index of the interaction in the SCORM data model. */
-    public $N;
+    public $n;
 
     /** @var array An associative array storing each of the data model elements associated with this interaction. */
     public $elements = array();
 
-    function __construct($N) {
-        $this->$N = $N;
+    /** Construct an interaction object.
+     *
+     * @param int $n The index of the interaction in the SCORM data model.
+     */
+    public function __construct($n) {
+        $this->$n = $n;
         $this->elements = array();
     }
 }

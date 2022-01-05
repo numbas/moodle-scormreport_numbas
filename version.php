@@ -1,10 +1,10 @@
 <?php
-
 /**
  * Defines the version of scorm_numbas
- * @package   scormreport
+ * @package   scormreport_numbas
  * @subpackage numbas
  * @author    Christian Lawson-Perfect
+ * @copyright 2020-2021 Newcastle University
  * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 

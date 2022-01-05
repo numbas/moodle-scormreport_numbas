@@ -1,12 +1,11 @@
 <?php
-
 /**
- * Strings for component 'scormreport_numbas' report plugin
+ * Strings for component 'scormreport_numbas' report plugin.
  *
  * @package   scormreport
  * @subpackage numbas
  * @author    Christian Lawson-Perfect
- * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ * @license   http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later.
  */
 
 defined('MOODLE_INTERNAL') || die();

@@ -30,6 +30,8 @@ require_once(__DIR__ . '/interaction.php');
 require_once(__DIR__ . '/question.php');
 require_once(__DIR__ . '/part.php');
 
+/** A SCORM report for Numbas exams.
+ */
 class report extends \mod_scorm\report {
     /**
      * Displays the full report.
@@ -91,10 +93,10 @@ class report extends \mod_scorm\report {
                     $trackdata->total_time = '';
                 }
                 $interactions = array();
-                $re_interaction = '/^cmi.interactions.(\d+).(id|description|learner_response|correct_responses.0.pattern|weighting|result|type)/';
-                $suspend_data = array();
+                $interactionregex = '/^cmi.interactions.(\d+).(id|description|learner_response|correct_responses.0.pattern|weighting|result|type)/';
+                $suspenddata = array();
                 foreach ($trackdata as $element => $value) {
-                    if (preg_match($re_interaction, $element, $matches)) {
+                    if (preg_match($interactionregex, $element, $matches)) {
                         $n = $matches[1];
                         if (!array_key_exists($n, $interactions)) {
                             $interactions[$n] = new interaction($n);
@@ -104,7 +106,7 @@ class report extends \mod_scorm\report {
                         $interaction->elements[$ielement] = $value;
                     }
                     if ($element == 'cmi.suspend_data') {
-                        $suspend_data = json_decode($value, TRUE);
+                        $suspenddata = json_decode($value, true);
                     }
                 }
                 $questions = array();
@@ -124,20 +126,20 @@ class report extends \mod_scorm\report {
                             $question->parts[$pn] = new part();
                         }
                         $part = $question->parts[$pn];
-                        if (array_key_exists(3, $pathm) && $pathm[3]!=='') {
+                        if (array_key_exists(3, $pathm) && $pathm[3] !== '') {
                             $gn = $pathm[3];
                             if (!array_key_exists($gn, $part->gaps)) {
                                 $part->gaps[$gn] = new part();
                             }
                             $part = $part->gaps[$gn];
-                        } else if (array_key_exists(4, $pathm) && $pathm[4]!=='') {
+                        } else if (array_key_exists(4, $pathm) && $pathm[4] !== '') {
                             $sn = $pathm[3];
                             if (!array_key_exists($sn, $part->steps)) {
                                 $part->steps[$sn] = new part();
                             }
                             $part = $part->steps[$n];
                         }
-                        $element_map = array(
+                        $elementmap = array(
                             'N' => 'N',
                             'id' => 'id',
                             'description' => 'type',
@@ -146,7 +148,7 @@ class report extends \mod_scorm\report {
                             'result' => 'score',
                             'weighting' => 'marks'
                         );
-                        foreach ($element_map as $from => $to) {
+                        foreach ($elementmap as $from => $to) {
                             if (array_key_exists($from, $interaction->elements)) {
                                 $part->$to = $interaction->elements[$from];
                             }
@@ -154,41 +156,41 @@ class report extends \mod_scorm\report {
                         switch ($part->type) {
                             case 'information':
                             case 'gapfill':
-                                $part->student_answer = '';
-                                $part->correct_answer = '';
+                                $part->studentanswer = '';
+                                $part->correctanswer = '';
                                 break;
                             case 'numberentry':
-                                if (preg_match('/^(-?\d+(?:\.\d+)?)\[:\](-?\d+(?:\.\d+)?)$/', $part->correct_answer, $m)) {
-                                    if ($m[1]==$m[2]) {
-                                        $part->correct_answer = $m[1];
+                                if (preg_match('/^(-?\d+(?:\.\d+)?)\[:\](-?\d+(?:\.\d+)?)$/', $part->correctanswer, $m)) {
+                                    if ($m[1] == $m[2]) {
+                                        $part->correctanswer = $m[1];
                                     } else {
-                                        $part->correct_answer = "${m[1]} to ${m[2]}";
+                                        $part->correctanswer = "${m[1]} to ${m[2]}";
                                     }
                                 }
                                 break;
                             case '1_n_2':
                             case 'm_n_2':
                             case 'm_n_x':
-                                $part->student_answer = $this->fix_choice_answer($part->student_answer);
-                                $part->correct_answer = $this->fix_choice_answer($part->correct_answer);
+                                $part->studentanswer = $this->fix_choice_answer($part->studentanswer);
+                                $part->correctanswer = $this->fix_choice_answer($part->correctanswer);
                                 break;
                         }
                         switch ($interaction->elements['type']) {
                             case 'fill-in':
-                                $part->correct_answer = preg_replace('/^\{case_matters=(true|false)\}/', '', $part->correct_answer, 1);
-                                if (preg_match('/^-?\d+(\.\d+)\[:\]-?\d+(\.\d+)$/', $part->correct_answer)) {
-                                    $bits = explode('[:]', $part->correct_answer);
-                                    if ($bits[0]==$bits[1]) {
-                                        $part->correct_answer = $bits[0];
+                                $part->correctanswer = preg_replace('/^\{case_matters=(true|false)\}/', '', $part->correctanswer, 1);
+                                if (preg_match('/^-?\d+(\.\d+)\[:\]-?\d+(\.\d+)$/', $part->correctanswer)) {
+                                    $bits = explode('[:]', $part->correctanswer);
+                                    if ($bits[0] == $bits[1]) {
+                                        $part->correctanswer = $bits[0];
                                     } else {
-                                        $part->correct_answer = str_replace('[:]', get_string('to','scormreport_numbas'), $part->correct_answer);
+                                        $part->correctanswer = str_replace('[:]', get_string('to', 'scormreport_numbas'), $part->correctanswer);
                                     }
                                 }
                                 break;
                         }
                     }
                 }
-                $part_type_names = array(
+                $parttypenames = array(
                     'information' => get_string('informationonly', 'scormreport_numbas'),
                     'extension' => get_string('extension', 'scormreport_numbas'),
                     '1_n_2' => get_string('chooseonefromalist', 'scormreport_numbas'),
@@ -203,13 +205,13 @@ class report extends \mod_scorm\report {
                 ksort($questions, SORT_NUMERIC);
                 foreach ($questions as $qn => $question) {
                     $rows = array();
-                    $qs = $suspend_data['questions'][$qn];
+                    $qs = $suspenddata['questions'][$qn];
                     $qname = $qs['name'];
 
                     $header = \html_writer::start_tag('h3');
-                    $header .= get_string('questionx', 'scormreport_numbas', $qn+1);
+                    $header .= get_string('questionx', 'scormreport_numbas', $qn + 1);
                     $header .= ' - ' . $qname;
-                    $header .=  \html_writer::end_tag('h3');
+                    $header .= \html_writer::end_tag('h3');
                     echo $header;
 
                     $table = new \flexible_table('mod-scorm-report');
@@ -232,7 +234,7 @@ class report extends \mod_scorm\report {
                         if (!array_key_exists($pn, $qs['parts'])) {
                             continue;
                         }
-                        $ps = $suspend_data['questions'][$qn]['parts'][$pn];
+                        $ps = $suspenddata['questions'][$qn]['parts'][$pn];
                         $rows[] = array(
                             'suspend' => $ps,
                             'part' => $part
@@ -267,21 +269,21 @@ class report extends \mod_scorm\report {
                         $ps = $row['suspend'];
                         $part = $row['part'];
                         $name = $ps ? $ps['name'] : '';
-                        if (substr($name, 0, strlen($qname))==$qname) {
+                        if (substr($name, 0, strlen($qname)) == $qname) {
                             $name = substr($name, strlen($qname));
                         }
                         if (array_key_exists('indent', $row)) {
                             $name = '&nbsp;&nbsp;' . $name;
                         }
                         $type = $part->type;
-                        if (array_key_exists($type, $part_type_names)) {
-                            $type = $part_type_names[$type];
+                        if (array_key_exists($type, $parttypenames)) {
+                            $type = $parttypenames[$type];
                         }
                         $table->add_data(array(
                             $name,
                             $type,
-                            '<code>' . $part->student_answer . '</code>',
-                            '<code>' . $part->correct_answer . '</code>',
+                            '<code>' . $part->studentanswer . '</code>',
+                            '<code>' . $part->correctanswer . '</code>',
                             $part->score,
                             $part->marks
                         ));
@@ -301,9 +303,7 @@ class report extends \mod_scorm\report {
         $contextmodule = \context_module::instance($this->cm->id);
         $attemptid = optional_param_array('attemptid', array(), PARAM_RAW);
 
-
         $currentgroup = groups_get_activity_group($this->cm, true);
-
 
         $pagesize = 20;
 

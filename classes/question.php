@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 /**
  * SCORM report class for Numbas SCORM packages
- * @package   scormreport
+ * @package   scormreport_numbas
  * @subpackage numbas
  * @author    Christian Lawson-Perfect
  * @copyright 2020-2021 Newcastle University
@@ -30,7 +30,9 @@ class question {
     /** @var array The parts belonging to this question. */
     public $parts = array();
 
-    function __construct() {
+    /** Construct a question object.
+     */
+    public function __construct() {
         $this->parts = array();
     }
 }
