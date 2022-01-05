@@ -45,3 +45,4 @@ $string['gapfill'] = 'Gap-fill';
 $string['matchtextpattern'] = 'Match text pattern';
 $string['gapnumber'] = ' Gap {$a}';
 $string['to'] = ' to ';
+$string['privacy:metadata'] = 'The Numbas SCORM report only displays existing attempt data.';
