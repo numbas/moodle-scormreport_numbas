@@ -135,11 +135,12 @@ class report extends \mod_scorm\report {
                             }
                             $part = $part->gaps[$gn];
                         } else if (array_key_exists(4, $pathm) && $pathm[4] !== '') {
-                            $sn = $pathm[3];
+                            $sn = $pathm[4];
                             if (!array_key_exists($sn, $part->steps)) {
+                                $made = true;
                                 $part->steps[$sn] = new part();
                             }
-                            $part = $part->steps[$n];
+                            $part = $part->steps[$sn];
                         }
                         $elementmap = array(
                             'N' => 'N',
